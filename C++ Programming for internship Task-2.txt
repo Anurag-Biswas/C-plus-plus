@@ -1,0 +1,112 @@
+#include <iostream>
+#include <fstream>
+#include <thread>
+#include <vector>
+#include <sstream>
+#include <mutex>
+
+using namespace std;
+
+const int THREAD_COUNT = 4;
+mutex fileMutex;
+
+string runLengthEncode(const string& input) {
+    stringstream encoded;
+    int count = 1;
+    for (size_t i = 0; i < input.size(); ++i) {
+        while (i + 1 < input.size() && input[i] == input[i + 1]) {
+            count++;
+            i++;
+        }
+        encoded << input[i] << count;
+        count = 1;
+    }
+    return encoded.str();
+}
+
+string runLengthDecode(const string& input) {
+    stringstream decoded;
+    for (size_t i = 0; i < input.size(); i++) {
+        char ch = input[i];
+        string countStr;
+        while (isdigit(input[++i])) {
+            countStr += input[i];
+        }
+        i--; // step back after digit loop
+        int count = stoi(countStr);
+        decoded << string(count, ch);
+    }
+    return decoded.str();
+}
+
+void processChunk(const vector<string>& lines, vector<string>& result, bool compress, int start, int end) {
+    for (int i = start; i < end; ++i) {
+        result[i] = compress ? runLengthEncode(lines[i]) : runLengthDecode(lines[i]);
+    }
+}
+
+void parallelProcess(const string& inputFile, const string& outputFile, bool compress) {
+    ifstream inFile(inputFile);
+    if (!inFile) {
+        cerr << "Cannot open input file.\n";
+        return;
+    }
+
+    vector<string> lines;
+    string line;
+    while (getline(inFile, line)) {
+        lines.push_back(line);
+    }
+    inFile.close();
+
+    vector<string> result(lines.size());
+    vector<thread> threads;
+    int totalLines = lines.size();
+    int linesPerThread = (totalLines + THREAD_COUNT - 1) / THREAD_COUNT;
+
+    for (int i = 0; i < THREAD_COUNT; ++i) {
+        int start = i * linesPerThread;
+        int end = min(start + linesPerThread, totalLines);
+        if (start >= end) break;
+        threads.emplace_back(processChunk, cref(lines), ref(result), compress, start, end);
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    ofstream outFile(outputFile);
+    if (!outFile) {
+        cerr << "Cannot open output file.\n";
+        return;
+    }
+
+    for (const auto& resLine : result) {
+        outFile << resLine << '\n';
+    }
+
+    outFile.close();
+    cout << (compress ? "Compression" : "Decompression") << " completed.\n";
+}
+
+int main() {
+    string inputFile, outputFile;
+    int choice;
+
+    cout << "Multithreaded RLE File Compressor/Decompressor\n";
+    cout << "Enter input filename: ";
+    cin >> inputFile;
+    cout << "Enter output filename: ";
+    cin >> outputFile;
+    cout << "Choose operation:\n1. Compress\n2. Decompress\nEnter choice: ";
+    cin >> choice;
+
+    if (choice == 1)
+        parallelProcess(inputFile, outputFile, true);
+    else if (choice == 2)
+        parallelProcess(inputFile, outputFile, false);
+    else
+        cout << "Invalid choice.\n";
+
+    return 0;
+}

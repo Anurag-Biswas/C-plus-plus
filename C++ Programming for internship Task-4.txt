@@ -1,0 +1,105 @@
+#include <iostream>
+#include <string>
+#include <cctype>
+
+using namespace std;
+
+class Parser {
+private:
+    string expr;
+    size_t pos;
+
+    char peek() {
+        if (pos < expr.size())
+            return expr[pos];
+        return '\0';
+    }
+
+    char get() {
+        return expr[pos++];
+    }
+
+    // Recursive descent parser structure
+    double parseExpression();  // Handles + and -
+    double parseTerm();        // Handles * and /
+    double parseFactor();      // Handles numbers and (expr)
+
+public:
+    Parser(const string& expression) : expr(expression), pos(0) {}
+
+    double evaluate() {
+        pos = 0;
+        return parseExpression();
+    }
+};
+
+double Parser::parseExpression() {
+    double result = parseTerm();
+    while (true) {
+        char op = peek();
+        if (op == '+' || op == '-') {
+            get();
+            double term = parseTerm();
+            if (op == '+') result += term;
+            else result -= term;
+        } else {
+            break;
+        }
+    }
+    return result;
+}
+
+double Parser::parseTerm() {
+    double result = parseFactor();
+    while (true) {
+        char op = peek();
+        if (op == '*' || op == '/') {
+            get();
+            double factor = parseFactor();
+            if (op == '*') result *= factor;
+            else {
+                if (factor == 0) throw runtime_error("Division by zero");
+                result /= factor;
+            }
+        } else {
+            break;
+        }
+    }
+    return result;
+}
+
+double Parser::parseFactor() {
+    while (isspace(peek())) get(); // Skip whitespaces
+
+    char ch = peek();
+    if (ch == '(') {
+        get(); // consume '('
+        double result = parseExpression();
+        if (get() != ')') throw runtime_error("Missing closing parenthesis");
+        return result;
+    } else if (isdigit(ch) || ch == '.') {
+        string num;
+        while (isdigit(peek()) || peek() == '.') {
+            num += get();
+        }
+        return stod(num);
+    } else {
+        throw runtime_error(string("Unexpected character: ") + ch);
+    }
+}
+
+int main() {
+    string input;
+    cout << "Enter an arithmetic expression (e.g., (3+4)*2/5): ";
+    getline(cin, input);
+
+    try {
+        Parser parser(input);
+        double result = parser.evaluate();
+        cout << "Result: " << result << endl;
+    } catch (const exception& e) {
+        cerr << "Error: " << e.what() << endl;
+    }
+
+    return 0;
+}

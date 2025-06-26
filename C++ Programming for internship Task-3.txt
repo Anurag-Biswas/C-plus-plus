@@ -1,0 +1,140 @@
+#include <SFML/Graphics.hpp>
+#include <deque>
+#include <cstdlib>
+#include <ctime>
+
+using namespace sf;
+using namespace std;
+
+const int WIDTH = 800;
+const int HEIGHT = 600;
+const int SIZE = 20; // Size of each grid cell
+
+enum Direction { UP, DOWN, LEFT, RIGHT };
+
+struct SnakeSegment {
+    int x, y;
+};
+
+class SnakeGame {
+private:
+    RenderWindow window;
+    deque<SnakeSegment> snake;
+    Direction dir;
+    int foodX, foodY;
+    bool gameOver;
+    Clock clock;
+    float delay;
+
+public:
+    SnakeGame() : window(VideoMode(WIDTH, HEIGHT), "Snake Game (SFML)"), dir(RIGHT), gameOver(false), delay(0.1f) {
+        snake.push_back({10, 10});
+        generateFood();
+    }
+
+    void generateFood() {
+        foodX = rand() % (WIDTH / SIZE);
+        foodY = rand() % (HEIGHT / SIZE);
+    }
+
+    void processInput() {
+        if (Keyboard::isKeyPressed(Keyboard::Up) && dir != DOWN) dir = UP;
+        else if (Keyboard::isKeyPressed(Keyboard::Down) && dir != UP) dir = DOWN;
+        else if (Keyboard::isKeyPressed(Keyboard::Left) && dir != RIGHT) dir = LEFT;
+        else if (Keyboard::isKeyPressed(Keyboard::Right) && dir != LEFT) dir = RIGHT;
+    }
+
+    void update() {
+        if (clock.getElapsedTime().asSeconds() < delay) return;
+        clock.restart();
+
+        SnakeSegment head = snake.front();
+        switch (dir) {
+            case UP: head.y--; break;
+            case DOWN: head.y++; break;
+            case LEFT: head.x--; break;
+            case RIGHT: head.x++; break;
+        }
+
+        // Collision detection
+        if (head.x < 0 || head.y < 0 || head.x >= WIDTH / SIZE || head.y >= HEIGHT / SIZE) {
+            gameOver = true;
+            return;
+        }
+
+        for (auto& segment : snake) {
+            if (segment.x == head.x && segment.y == head.y) {
+                gameOver = true;
+                return;
+            }
+        }
+
+        snake.push_front(head);
+
+        if (head.x == foodX && head.y == foodY) {
+            generateFood();
+        } else {
+            snake.pop_back();
+        }
+    }
+
+    void render() {
+        window.clear(Color::Black);
+
+        RectangleShape rect(Vector2f(SIZE - 2, SIZE - 2));
+
+        // Draw snake
+        for (auto& segment : snake) {
+            rect.setFillColor(Color::Green);
+            rect.setPosition(segment.x * SIZE, segment.y * SIZE);
+            window.draw(rect);
+        }
+
+        // Draw food
+        rect.setFillColor(Color::Red);
+        rect.setPosition(foodX * SIZE, foodY * SIZE);
+        window.draw(rect);
+
+        window.display();
+    }
+
+    void run() {
+        while (window.isOpen()) {
+            Event event;
+            while (window.pollEvent(event)) {
+                if (event.type == Event::Closed)
+                    window.close();
+            }
+
+            if (!gameOver) {
+                processInput();
+                update();
+                render();
+            } else {
+                // Game Over screen
+                window.clear(Color::Black);
+                Font font;
+                if (!font.loadFromFile("arial.ttf")) {
+                    // Error: font not found
+                    return;
+                }
+                Text text("Game Over! Press ESC to Exit", font, 30);
+                text.setFillColor(Color::White);
+                text.setPosition(WIDTH / 4, HEIGHT / 2);
+                window.draw(text);
+                window.display();
+
+                if (Keyboard::isKeyPressed(Keyboard::Escape)) {
+                    window.close();
+                }
+            }
+        }
+    }
+};
+
+int main() {
+    srand(static_cast<unsigned>(time(0)));
+    SnakeGame game;
+    game.run();
+    return 0;
+}
